@@ -1,4 +1,4 @@
-# tiny-script
+# tiny-scripts
 
 ## これは何
 
@@ -7,6 +7,8 @@
 ## 内容
 
 そのうち自分でも忘れそうなので書いておく
+
+### 競技プログラミング関連 (compro)
 
 - `compro/atcoder_problems/fetch_specific_difficulty_problem_lists.py`
   - AtCoder Problems に収録されている、特定の範囲の diff を持つ問題を全取得して json, csv にする
@@ -18,4 +20,3 @@
   - generator, solution, tester コードがあることが前提
   - AtCoder の Introduction to Heuristics Contest 用に作ったので、他のコンテストで利用するなら得点取得パートを若干変える必要がある
     - 得点計算器の出力形式や Usage 等に依存するのでいい感じの一般化が不可能・・・
-
