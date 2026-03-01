@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/claude-notification/hooks/notify-pushover.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/claude-notification/hooks/notify-stop.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
