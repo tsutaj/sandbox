@@ -1,8 +1,9 @@
 # voice-approval
 
-Claude Code のプロンプトを音声で承認するスクリプト集。
+Claude Code のプロンプトを音声で承認・拒否するスクリプト集。
 
-「ok」「okay」「approve」などと発話するだけで Enter キーを送信できる。
+- 「ok」「approve」などと発話するだけで Enter キーを送信できる
+- 「deny」「reject」などと発話すると Escape キーを送信できる
 
 ---
 
@@ -37,8 +38,8 @@ python voice_approval.py
 ```
 
 1. マイクのキャリブレーションが完了すると「準備完了」と表示される
-2. **Claude Code のターミナルをフォーカスした状態**で承認ワードを発話
-3. Enter キーが自動送信される
+2. **Claude Code のターミナルをフォーカスした状態**で発話
+3. 承認ワード (`ok`, `approve` など) → Enter 送信 / 拒否ワード (`deny`, `reject`) → Escape 送信
 
 > **注意**: `pynput` は現在フォーカスされているウィンドウにキーを送る。
 > Claude Code のターミナルがフォーカスされていないと別のウィンドウに Enter が送られる。
@@ -54,17 +55,17 @@ iPad や別 PC から SSH でリモートサーバーに接続して Claude Code
 ```
 [iPad / 別 PC のブラウザ]
         |
-        | HTTP POST /approve
+        | HTTP POST /approve  または  /deny
         v
 [リモートサーバー: ssh_server.py :8765]
         |
-        | tmux send-keys -t <session> Enter
+        | tmux send-keys -t <session> Enter  または  Escape
         v
 [Claude Code が動く tmux セッション]
 ```
 
-ブラウザの [Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API) で音声認識し、承認ワードを検出したらサーバーの `/approve` エンドポイントに POST する。
-サーバーは `tmux send-keys` で指定セッションに Enter を送信する。
+ブラウザの [Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API) で音声認識し、承認ワードを検出したら `/approve`、拒否ワードを検出したら `/deny` エンドポイントに POST する。
+サーバーは `tmux send-keys` で指定セッションに対応するキーを送信する。
 
 > Web Speech API は **Safari (iOS 14.5 以降)** と Chrome で動作する。
 
@@ -108,9 +109,9 @@ ssh -L 8765:localhost:8765 user@server
 1. `tmux セッション名` 入力欄に `claude` (セッション名) を入力
 2. **「音声認識を開始」** ボタンをタップ
 3. マイクの使用を許可
-4. 承認ワードを発話 → Enter が送信される
+4. 承認ワード (`ok`, `approve` など) を発話 → Enter 送信 / 拒否ワード (`deny`, `reject`) を発話 → Escape 送信
 
-### iPhone ショートカットで「Hey Siri」承認
+### iPhone ショートカットで「Hey Siri」承認・拒否
 
 ブラウザの Web Speech API は iOS でバックグラウンド動作しないため、
 ターミナルアプリを見ながら使うには **iOS ショートカット + Siri** が最も確実。
@@ -118,18 +119,21 @@ ssh -L 8765:localhost:8765 user@server
 #### 仕組み
 
 ```
-「Hey Siri、承認」
-    ↓
-iOS ショートカット: POST /approve
-    ↓
-ssh_server.py → tmux send-keys Enter
+「Hey Siri、承認」          「Hey Siri、拒否」
+    ↓                           ↓
+iOS ショートカット:          iOS ショートカット:
+POST /approve               POST /deny
+    ↓                           ↓
+tmux send-keys Enter        tmux send-keys Escape
 ```
 
-#### ショートカットの作成手順
+#### ショートカットの作成手順 (承認・拒否それぞれ作成する)
 
 1. **「ショートカット」アプリ** を開き、右上の **+** をタップ
 2. **「アクションを追加」** → 検索欄に `URL` と入力 → **「URLの内容を取得」** を選択
 3. 以下の通り設定する:
+
+   **承認ショートカット:**
 
    | 項目 | 値 |
    |---|---|
@@ -137,21 +141,35 @@ ssh_server.py → tmux send-keys Enter
    | 方法 | POST |
    | リクエストの本文 | JSON |
 
-   JSON の本文に以下のキーと値を追加:
+   JSON の本文:
 
    | キー | 値 |
    |---|---|
    | `text` | `approve` |
    | `session` | `claude` (tmux のセッション名) |
 
-4. 画面上部のショートカット名を **「承認」** などに変更して保存
+   **拒否ショートカット:**
+
+   | 項目 | 値 |
+   |---|---|
+   | URL | `http://<サーバーのIP>:8765/deny` |
+   | 方法 | POST |
+   | リクエストの本文 | JSON |
+
+   JSON の本文:
+
+   | キー | 値 |
+   |---|---|
+   | `text` | `reject` |
+   | `session` | `claude` (tmux のセッション名) |
+
+4. 画面上部のショートカット名を **「承認」** / **「拒否」** などに変更して保存
 
 #### Siri からの呼び出し
 
-Siri を起動し、ショートカット名をそのまま呼びかければ実行できる。
-
 ```
 「Hey Siri、承認」
+「Hey Siri、拒否」
 ```
 
 参考: [Siri でショートカットを実行する — Apple サポート](https://support.apple.com/ja-jp/guide/shortcuts/apd07c25bb38/8.0/ios/18.0)

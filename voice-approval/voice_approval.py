@@ -14,6 +14,10 @@ APPROVE_WORDS = {
     "ok", "okay", "approve"
 }
 
+DENY_WORDS = {
+    "deny", "reject"
+}
+
 keyboard = Controller()
 
 
@@ -22,9 +26,19 @@ def is_approval(text: str) -> bool:
     return any(word in text_lower for word in APPROVE_WORDS)
 
 
+def is_denial(text: str) -> bool:
+    text_lower = text.lower().strip()
+    return any(word in text_lower for word in DENY_WORDS)
+
+
 def send_enter() -> None:
     keyboard.press(Key.enter)
     keyboard.release(Key.enter)
+
+
+def send_escape() -> None:
+    keyboard.press(Key.esc)
+    keyboard.release(Key.esc)
 
 
 def main() -> None:
@@ -34,7 +48,7 @@ def main() -> None:
     print("マイクをキャリブレーション中...")
     with mic as source:
         recognizer.adjust_for_ambient_noise(source, duration=2)
-    print(f"準備完了。承認ワード ({', '.join(APPROVE_WORDS)}) を発話してください。Ctrl+C で停止。\n")
+    print(f"準備完了。承認ワード ({', '.join(APPROVE_WORDS)}) / 拒否ワード ({', '.join(DENY_WORDS)}) を発話してください。Ctrl+C で停止。\n")
 
     while True:
         try:
@@ -59,8 +73,11 @@ def main() -> None:
             if is_approval(text):
                 print("→ 承認ワード検出 — Enter を送信します\n")
                 send_enter()
+            elif is_denial(text):
+                print("→ 拒否ワード検出 — Escape を送信します\n")
+                send_escape()
             else:
-                print("→ 承認ワードではありません\n")
+                print("→ 該当ワードではありません\n")
 
         except sr.WaitTimeoutError:
             print("(タイムアウト — 再待受)")

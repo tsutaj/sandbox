@@ -52,6 +52,7 @@
     }
     #status.listening { border-color: #34c759; background: #f0fff4; }
     #status.approved  { border-color: #007aff; background: #eef4ff; }
+    #status.denied    { border-color: #ff9500; background: #fff8ee; }
     #status.error     { border-color: #ff3b30; background: #fff0ee; }
 
     #log {
@@ -66,7 +67,7 @@
 </head>
 <body>
   <h1>Voice Approval</h1>
-  <p class="subtitle">「はい」「yes」などと発話すると Enter が送信されます</p>
+  <p class="subtitle">「はい」「yes」などで承認 / 「いいえ」「no」などで拒否</p>
 
   <label for="session">tmux セッション名</label>
   <input type="text" id="session" placeholder="例: claude" autocomplete="off" autocorrect="off" spellcheck="false">
@@ -77,8 +78,8 @@
   <div id="log"></div>
 
   <script>
-    const APPROVE_WORDS = ['yes', 'ok', 'okay', 'approve', 'confirm', 'go',
-                           'はい', '承認', 'よし', 'いくよ'];
+    const APPROVE_WORDS = ['yes', 'ok', 'okay', 'approve', 'confirm', 'go'];
+    const DENY_WORDS = ['deny', 'reject'];
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition = null;
@@ -108,7 +109,7 @@
         return;
       }
       recognition = new SpeechRecognition();
-      recognition.lang = 'ja-JP';
+      recognition.lang = 'en-US';
       recognition.continuous = true;
       recognition.interimResults = false;
 
@@ -127,6 +128,8 @@
         const lower = text.toLowerCase();
         if (APPROVE_WORDS.some(w => lower.includes(w))) {
           await sendApprove(text);
+        } else if (DENY_WORDS.some(w => lower.includes(w))) {
+          await sendDeny(text);
         }
       };
 
@@ -170,6 +173,30 @@
         if (data.status === 'approved') {
           setStatus(`Enter 送信完了 (${text})`, 'approved');
           addLog('Enter 送信成功');
+        } else {
+          setStatus(`エラー: ${data.message || data.status}`, 'error');
+          addLog(`サーバーエラー: ${data.message || data.status}`);
+        }
+      } catch (e) {
+        setStatus(`通信エラー: ${e.message}`, 'error');
+        addLog(`通信エラー: ${e.message}`);
+      }
+    }
+
+    async function sendDeny(text) {
+      const session = document.getElementById('session').value.trim();
+      setStatus(`拒否ワード検出: "${text}" — Escape 送信中...`, 'denied');
+      addLog(`拒否ワード検出 → Escape 送信 (session: ${session || '未指定'})`);
+      try {
+        const res = await fetch('/deny', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, session }),
+        });
+        const data = await res.json();
+        if (data.status === 'denied') {
+          setStatus(`Escape 送信完了 (${text})`, 'denied');
+          addLog('Escape 送信成功');
         } else {
           setStatus(`エラー: ${data.message || data.status}`, 'error');
           addLog(`サーバーエラー: ${data.message || data.status}`);
