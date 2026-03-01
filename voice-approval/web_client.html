@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voice Approval</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 480px;
+      margin: 40px auto;
+      padding: 0 16px;
+      background: #f5f5f7;
+      color: #1d1d1f;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    .subtitle { color: #6e6e73; font-size: 0.9rem; margin-bottom: 24px; }
+
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #c7c7cc;
+      border-radius: 8px;
+      font-size: 1rem;
+      box-sizing: border-box;
+      margin-bottom: 20px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button.start  { background: #34c759; color: #fff; }
+    button.stop   { background: #ff3b30; color: #fff; }
+    button:disabled { background: #c7c7cc; cursor: default; }
+
+    #status {
+      margin-top: 20px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      background: #fff;
+      border: 1px solid #e5e5ea;
+      min-height: 48px;
+    }
+    #status.listening { border-color: #34c759; background: #f0fff4; }
+    #status.approved  { border-color: #007aff; background: #eef4ff; }
+    #status.error     { border-color: #ff3b30; background: #fff0ee; }
+
+    #log {
+      margin-top: 16px;
+      font-size: 0.8rem;
+      color: #6e6e73;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    #log p { margin: 2px 0; }
+  </style>
+</head>
+<body>
+  <h1>Voice Approval</h1>
+  <p class="subtitle">「はい」「yes」などと発話すると Enter が送信されます</p>
+
+  <label for="session">tmux セッション名</label>
+  <input type="text" id="session" placeholder="例: claude" autocomplete="off" autocorrect="off" spellcheck="false">
+
+  <button class="start" id="btn" onclick="toggle()">音声認識を開始</button>
+
+  <div id="status">待機中</div>
+  <div id="log"></div>
+
+  <script>
+    const APPROVE_WORDS = ['yes', 'ok', 'okay', 'approve', 'confirm', 'go',
+                           'はい', '承認', 'よし', 'いくよ'];
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let running = false;
+
+    function setStatus(msg, cls = '') {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = cls;
+    }
+
+    function addLog(msg) {
+      const log = document.getElementById('log');
+      const p = document.createElement('p');
+      p.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      log.prepend(p);
+      if (log.children.length > 50) log.lastChild.remove();
+    }
+
+    function toggle() {
+      if (!running) start(); else stop();
+    }
+
+    function start() {
+      if (!SpeechRecognition) {
+        setStatus('このブラウザは Web Speech API に対応していません', 'error');
+        return;
+      }
+      recognition = new SpeechRecognition();
+      recognition.lang = 'ja-JP';
+      recognition.continuous = true;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        running = true;
+        setStatus('聴き取り中...', 'listening');
+        const btn = document.getElementById('btn');
+        btn.textContent = '停止';
+        btn.className = 'stop';
+        addLog('音声認識を開始しました');
+      };
+
+      recognition.onresult = async (event) => {
+        const text = event.results[event.results.length - 1][0].transcript.trim();
+        addLog(`認識: "${text}"`);
+        const lower = text.toLowerCase();
+        if (APPROVE_WORDS.some(w => lower.includes(w))) {
+          await sendApprove(text);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        addLog(`エラー: ${event.error}`);
+        if (event.error === 'not-allowed') {
+          setStatus('マイクへのアクセスが拒否されました', 'error');
+          stop();
+        }
+      };
+
+      recognition.onend = () => {
+        // continuous モードが途切れた場合は再起動
+        if (running) recognition.start();
+      };
+
+      recognition.start();
+    }
+
+    function stop() {
+      running = false;
+      if (recognition) recognition.stop();
+      setStatus('停止しました');
+      const btn = document.getElementById('btn');
+      btn.textContent = '音声認識を開始';
+      btn.className = 'start';
+      addLog('音声認識を停止しました');
+    }
+
+    async function sendApprove(text) {
+      const session = document.getElementById('session').value.trim();
+      setStatus(`承認ワード検出: "${text}" — Enter 送信中...`, 'approved');
+      addLog(`承認ワード検出 → Enter 送信 (session: ${session || '未指定'})`);
+      try {
+        const res = await fetch('/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, session }),
+        });
+        const data = await res.json();
+        if (data.status === 'approved') {
+          setStatus(`Enter 送信完了 (${text})`, 'approved');
+          addLog('Enter 送信成功');
+        } else {
+          setStatus(`エラー: ${data.message || data.status}`, 'error');
+          addLog(`サーバーエラー: ${data.message || data.status}`);
+        }
+      } catch (e) {
+        setStatus(`通信エラー: ${e.message}`, 'error');
+        addLog(`通信エラー: ${e.message}`);
+      }
+    }
+  </script>
+</body>
+</html>
