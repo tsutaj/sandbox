@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+IMAGE="${CLAUDE_CONTAINER_IMAGE:-claude-code-container}"
+# ホストと同じパスでマウントすることで ~/.claude 内のシンボリックリンクを解決できる
+CONTAINER_HOME="$HOME"
+HOST_DOCS="$HOME/Documents"
+WORK_DIR="$(pwd)"
+
+# $HOME 以下にいる場合はコンテナ内でも同じパスで作業できる
+if [[ "$WORK_DIR" == "$HOME"* ]]; then
+  CONTAINER_WORKDIR="$WORK_DIR"
+  EXTRA_MOUNTS=()
+else
+  CONTAINER_WORKDIR="/workspace"
+  EXTRA_MOUNTS=(-v "$WORK_DIR:/workspace")
+fi
+
+# ANTHROPIC_API_KEY が設定されていれば渡す
+ENV_ARGS=()
+if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+  ENV_ARGS=(-e "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY")
+fi
+
+exec docker run -it --rm \
+  -e "TERM=$TERM" \
+  -e "COLORTERM=${COLORTERM:-}" \
+  -v "$HOME/.claude:$CONTAINER_HOME/.claude" \
+  -v "$HOME/.claude.json:$CONTAINER_HOME/.claude.json" \
+  -v "$HOST_DOCS:$CONTAINER_HOME/Documents" \
+  -v "$HOME/.gitconfig:$CONTAINER_HOME/.gitconfig:ro" \
+  -v "$HOME/.config/gh:$CONTAINER_HOME/.config/gh" \
+  -v "$HOME/.ssh:$CONTAINER_HOME/.ssh:ro" \
+  -v "$HOME/.ssh:/home/ubuntu/.ssh:ro" \
+  "${EXTRA_MOUNTS[@]+"${EXTRA_MOUNTS[@]}"}" \
+  "${ENV_ARGS[@]+"${ENV_ARGS[@]}"}" \
+  -e "HOME=$CONTAINER_HOME" \
+  -w "$CONTAINER_WORKDIR" \
+  "$IMAGE" \
+  claude --dangerously-skip-permissions "$@"
