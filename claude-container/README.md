@@ -6,9 +6,10 @@
 
 ```
 claude-container/
-├── Dockerfile   # Claude Code + 各種 CLI ツールのイメージ定義
-├── build.sh     # イメージビルドスクリプト
-└── claude-c     # どこからでも呼び出せる起動スクリプト
+├── Dockerfile              # Claude Code + 各種 CLI ツールのイメージ定義
+├── setup-competitive.sh    # 競技プログラミング環境のインストールスクリプト
+├── build.sh                # イメージビルドスクリプト
+└── claude-c                # どこからでも呼び出せる起動スクリプト
 ```
 
 ローカルのシンボリックリンク：
@@ -20,9 +21,14 @@ claude-container/
 
 ## 含まれるツール
 
+**常時**
 - **Claude Code** (`@anthropic-ai/claude-code`)
 - **GitHub CLI** (`gh`)
 - `git`, `tmux`, `curl`, `wget`, `jq`, `ripgrep`, `fzf`, `vim`
+
+**`--competitive` ビルド時のみ**
+- `g++`、`python3`、`uv`
+- **Rust** (`cargo`, `rustc`)
 
 ## セットアップ
 
@@ -45,7 +51,11 @@ export PATH="$HOME/.local/bin:$PATH"
 ### 2. イメージをビルド
 
 ```bash
+# 通常ビルド
 ~/claude-container/build.sh
+
+# 競技プログラミング環境込みでビルド（g++, Python, uv, Rust を追加）
+~/claude-container/build.sh --competitive
 ```
 
 ## 使い方

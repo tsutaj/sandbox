@@ -36,7 +36,20 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
 # Claude Code
 RUN npm install -g @anthropic-ai/claude-code
 
+# 競技プログラミング環境（--build-arg INSTALL_COMPETITIVE=true でオン）
+ARG INSTALL_COMPETITIVE=false
+COPY setup-competitive.sh /tmp/setup-competitive.sh
+RUN if [ "$INSTALL_COMPETITIVE" = "true" ]; then bash /tmp/setup-competitive.sh root; fi
+
 # ubuntu ユーザー (UID=1000) が既に存在するのでそのまま使用
 # --dangerously-skip-permissions は root 不可のため非 root で実行
 USER ubuntu
 WORKDIR /home/ubuntu
+ENV PATH=/home/ubuntu/.cargo/bin:${PATH}
+ENV CARGO_HOME=/home/ubuntu/.cargo
+ENV RUSTUP_HOME=/home/ubuntu/.rustup
+# HOME を外部から override しても XDG ディレクトリは ubuntu のホームに固定
+ENV XDG_CACHE_HOME=/home/ubuntu/.cache
+ENV XDG_CONFIG_HOME=/home/ubuntu/.config
+ENV XDG_DATA_HOME=/home/ubuntu/.local/share
+RUN if [ "$INSTALL_COMPETITIVE" = "true" ]; then bash /tmp/setup-competitive.sh user; fi
